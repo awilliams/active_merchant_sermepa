@@ -55,6 +55,7 @@ module ActiveMerchant #:nodoc:
           mapping :notify_url,  'Ds_Merchant_MerchantURL'
           mapping :success_url, 'Ds_Merchant_UrlOK'
           mapping :failure_url, 'Ds_Merchant_UrlKO'
+          mapping :notify_data, 'Ds_Merchant_MerchantData'
 
           mapping :language,    'Ds_Merchant_ConsumerLanguage'
 
@@ -70,7 +71,7 @@ module ActiveMerchant #:nodoc:
           mapping :signature,   'Ds_Merchant_MerchantSignature'
           ########
 
-          # ammount should always be provided in cents!
+          # amount should always be provided in cents!
           def initialize(order, account, options = {})
             self.credentials = options.delete(:credentials) if options[:credentials]
             super(order, account, options)
@@ -124,6 +125,9 @@ module ActiveMerchant #:nodoc:
             @fields
           end
 
+          def expiry_date(date)
+            add_field mappings[:expiry_date], date.strftime("%Y-%m-%d")
+          end
 
           # Send a manual request for the currently prepared transaction.
           # This is an alternative to the normal view helper and is useful
@@ -150,11 +154,11 @@ module ActiveMerchant #:nodoc:
               xml.DS_MERCHANT_AMOUNT @fields['Ds_Merchant_Amount']
               xml.DS_MERCHANT_MERCHANTURL @fields['Ds_Merchant_MerchantURL']
               xml.DS_MERCHANT_TRANSACTIONTYPE @fields['Ds_Merchant_TransactionType']
-              xml.DS_MERCHANT_MERCHANTDATA @fields['Ds_Merchant_Product_Description']
+              xml.DS_MERCHANT_MERCHANTDATA @fields['Ds_Merchant_MerchantData']
               xml.DS_MERCHANT_TERMINAL credentials[:terminal_id]
               xml.DS_MERCHANT_MERCHANTCODE credentials[:commercial_id]
               xml.DS_MERCHANT_ORDER @fields['Ds_Merchant_Order']
-              xml.DS_MERCHANT_MERCHANTSIGNATURE sign_request
+              xml.DS_MERCHANT_MERCHANTSIGNATURE sign_request(false)
             end
             xml.target!
           end
@@ -162,8 +166,8 @@ module ActiveMerchant #:nodoc:
 
           # Generate a signature authenticating the current request.
           # Values included in the signature are determined by the the type of
-          # transaction.
-          def sign_request
+          # transaction. XML requests don't include the `Ds_Merchant_MerchantURL`
+          def sign_request(include_merchant_url = true)
             str = @fields['Ds_Merchant_Amount'].to_s +
                   @fields['Ds_Merchant_Order'].to_s +
                   @fields['Ds_Merchant_MerchantCode'].to_s +
@@ -175,8 +179,8 @@ module ActiveMerchant #:nodoc:
             end
 
             if credentials[:key_type].blank? || credentials[:key_type] == 'sha1_extended'
-              str += @fields['Ds_Merchant_TransactionType'].to_s +
-                     @fields['Ds_Merchant_MerchantURL'].to_s # may be blank!
+              str += @fields['Ds_Merchant_TransactionType'].to_s
+              str += @fields['Ds_Merchant_MerchantURL'].to_s if include_merchant_url # may be blank!
             end
 
             str += credentials[:secret_key]
